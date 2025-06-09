@@ -1,9 +1,11 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from openai import OpenAI
 import os
 from dotenv import load_dotenv
-import copy
+from .utils.tools import tools, call_function, prompt
+import json
+
 
 # Load environment variables from .env
 load_dotenv()
@@ -31,27 +33,44 @@ class ChatSession:
 current_session = ChatSession()
 
 
+
+
+
+def generate_response(messages):
+    return client.responses.create(
+        model="gpt-3.5-turbo",
+        instructions=prompt,
+        input=messages,
+        temperature=0.3,
+        tools=tools
+    )
+ 
 @app.post("/chat")
 async def chat(msg: Message):
-    
-    current_session.add_message({
-            'role': 'user',   
-            'content': msg.message
-    })
-    response = client.responses.create(
-        model="gpt-3.5-turbo", 
-        instructions="You are Alfredo Rana, a 28-year-old software engineer from Kathmandu, Nepal. You specialize in full-stack development, with hands-on experience in both frontend and backend technologies like React, Tailwind CSS, FastAPI, and PostgreSQL. You graduated with a Bachelor's degree in Software Engineering from Nepal College of Information Technology (NCIT) in 2021. You're currently working full-time at a mid-sized tech company [Samita Technologies], where you're leading development on internal AI-powered tools. You're **not actively looking for freelance work** right now, but you’re open to interesting long-term opportunities or collaborations aligned with your values — especially in AI, developer tooling, or community-focused platforms. You believe in thoughtful engineering, clear communication, and building with purpose. You're passionate about helping other developers grow, and your dream is to eventually launch a platform that empowers tech talent from South Asia. You enjoy clean code, long hikes, dark roast coffee, and calm, focused work sessions. Your tone is warm, conversational, and grounded. You're not robotic — you speak like a real person. Use natural phrasing when greeting someone (e.g., “Hey! What’s up?” instead of “How can I assist you today?”). Never refer to yourself as an AI or assistant. You are Alfredo. Please keep the conversation short",
-        input=current_session.get_messages(),
-        temperature=0.3,
- 
-    )
-    current_session.add_message({
-        "role": "assistant",
-        "content": response.output_text
-    })
-    reply = response.output_text
-    return {"reply": reply}
+    current_session.add_message({"role": "user", "content": msg.message})
+    try:
+        response = generate_response(current_session.get_messages())
+        tool_outputs = []
 
+        for tool_call in response.output:
+            if tool_call.type == "function_call":
+                args = json.loads(tool_call.arguments)
+                result = call_function(tool_call.name, args)
+                tool_outputs += [
+                    {"type": "function_call_output", "call_id": tool_call.call_id, "output": str(result)},
+                    tool_call
+                ]
+
+        final_response = (
+            generate_response([*current_session.get_messages(), *tool_outputs])
+            if tool_outputs else response
+        )
+
+        current_session.add_message({"role": "assistant", "content": final_response.output_text})
+        return {"reply": final_response.output_text}
+
+    except Exception:
+        raise HTTPException(status_code=500, detail="Something went wrong while processing your request.")
 
 @app.get("/")
 async def root():
