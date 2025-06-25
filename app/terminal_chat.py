@@ -20,7 +20,7 @@ def send_message(message: str) -> str | None:
 
 def chat_interface():
     print("--------------------------------------------------")
-    print("Welcome to the Rizzler Chatbot! Type 'exit' to quit.")
+    print("Welcome to the Alfredo Chatbot! Type 'exit' to quit.")
     print("--------------------------------------------------")
     
     while True:
@@ -28,13 +28,13 @@ def chat_interface():
         
         if user_input.lower() == 'exit':
             print("--------------------------------------------------")
-            print("Chat ended. Later, fam! Stay hydrated.")
+            print("Bye, fam! Stay hydrated.")
             print("--------------------------------------------------")
             break
         
         reply = send_message(user_input)
         if reply:
-            print(f"Rizzler: {reply}")
+            print(f"Alfredo: {reply}")
         
         print("---------------------------------------------------------") 
 
